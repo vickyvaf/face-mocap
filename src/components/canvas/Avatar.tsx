@@ -1,6 +1,6 @@
-import { useGLTF } from "@react-three/drei";
+import { useAnimations, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { forwardRef, useEffect } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import * as THREE from "three";
 import { Group, MathUtils } from "three";
 
@@ -8,7 +8,26 @@ useGLTF.preload("/face-mocap.glb");
 
 export const Avatar = forwardRef<Group, React.JSX.IntrinsicElements["group"]>(
   (props, ref) => {
-    const { nodes } = useGLTF("/face-mocap.glb");
+    const group = useRef<Group>(null);
+    const { nodes, animations } = useGLTF("/face-mocap.glb");
+    const { actions, names } = useAnimations(animations, group);
+
+    // Expose the group ref to parent
+    useImperativeHandle(ref, () => group.current as Group);
+
+    // Play all animations by default or log them
+    useEffect(() => {
+      console.log("Available animations:", names);
+      if (names.length > 0) {
+        // Play the first animation found
+        actions[names[0]]?.reset().fadeIn(0.5).play();
+        actions[names[1]]?.reset().fadeIn(0.5).play();
+      }
+      return () => {
+        actions[names[0]]?.fadeOut(0.5);
+        actions[names[1]]?.fadeOut(0.5);
+      };
+    }, [actions, names]);
 
     // We can use refs to access the specific meshes directly if needed,
     // but since they are in `nodes`, we can access them directly there too.
@@ -66,12 +85,13 @@ export const Avatar = forwardRef<Group, React.JSX.IntrinsicElements["group"]>(
     }, [nodes]);
 
     return (
-      <group ref={ref} {...props} dispose={null}>
+      <group ref={group} {...props} dispose={null}>
         <primitive object={nodes.body} />
         <group rotation={[0, Math.PI, 0]}>
           <primitive object={nodes.eye_left} />
           <primitive object={nodes.eye_right} />
         </group>
+        <primitive object={nodes.lips} />
       </group>
     );
   }
