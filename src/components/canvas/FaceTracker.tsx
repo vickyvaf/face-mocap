@@ -192,12 +192,17 @@ export const FaceTracker = () => {
               // ----------------------------------------------------
               canvasCtx.font = "30px Arial";
               canvasCtx.fillStyle = "red";
+              canvasCtx.textAlign = "center";
               canvasCtx.fillText(
                 `Gaze X: ${gazeX.toFixed(2)} (${gazeDir})`,
-                50,
+                canvasElement.width / 2,
                 50
               );
-              canvasCtx.fillText(`Eyelid: ${eyelid}`, 50, 100);
+              canvasCtx.fillText(
+                `Eyelid: ${eyelid}`,
+                canvasElement.width / 2,
+                100
+              );
             } else {
               canvasCtx.restore(); // Ensure context is restored even if no landmarks
             }
