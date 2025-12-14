@@ -18,6 +18,7 @@ A 3D Face Motion Capture application built with React, Three.js, and MediaPipe.
 - **Framework**: React + Vite + TypeScript
 - **3D Engine**: Three.js + React Three Fiber (`@react-three/fiber`)
 - **Helpers**: `@react-three/drei`
+- **Computer Vision**: [MediaPipe Tasks Vision](https://pjbelo.github.io/mediapipe-js-demos/)
 
 ## Getting Started
 
