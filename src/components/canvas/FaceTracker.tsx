@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import { Camera } from "@mediapipe/camera_utils";
 import { updateFaceData } from "../../utils/faceStore";
@@ -7,6 +7,9 @@ export const FaceTracker = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
+  const lastTime = useRef(Date.now());
+  const frameCount = useRef(0);
+  const [fpsValue, setFpsValue] = useState(0);
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -40,6 +43,15 @@ export const FaceTracker = () => {
     const startCamera = () => {
       const camera = new Camera(videoElement, {
         onFrame: async () => {
+          // Calculate FPS
+          frameCount.current++;
+          const now = Date.now();
+          if (now - lastTime.current >= 1000) {
+            setFpsValue(frameCount.current);
+            frameCount.current = 0;
+            lastTime.current = now;
+          }
+
           if (faceLandmarkerRef.current && videoElement.videoWidth > 0) {
             const results = faceLandmarkerRef.current.detectForVideo(
               videoElement,
@@ -245,6 +257,21 @@ export const FaceTracker = () => {
         ref={canvasRef}
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
       ></canvas>
+      <div
+        style={{
+          position: "absolute",
+          top: "10px",
+          right: "10px",
+          backgroundColor: "gray",
+          color: "white",
+          padding: "5px 10px",
+          borderRadius: "4px",
+          fontSize: "16px",
+          pointerEvents: "none",
+        }}
+      >
+        {fpsValue} FPS
+      </div>
     </div>
   );
 };

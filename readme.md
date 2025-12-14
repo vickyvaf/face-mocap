@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/10a1eb48-4762-4791-9db1-82f00a8af9bc
 - **Framework**: React + Vite + TypeScript
 - **3D Engine**: Three.js + React Three Fiber (`@react-three/fiber`)
 - **Helpers**: `@react-three/drei`
-- **Computer Vision**: [MediaPipe Tasks Vision](https://pjbelo.github.io/mediapipe-js-demos/)
+- **Computer Vision**: [MediaPipe Tasks Vision](https://developers.google.com/mediapipe/solutions/vision) (Face Landmarker)
 
 ## Getting Started
 
