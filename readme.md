@@ -2,7 +2,7 @@
 
 A 3D Face Motion Capture application built with React, Three.js, and MediaPipe.
 
-![Face Mocap Preview](public/preview.png)
+https://github.com/user-attachments/assets/10a1eb48-4762-4791-9db1-82f00a8af9bc
 
 ## Features
 
