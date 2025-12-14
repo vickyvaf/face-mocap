@@ -9,11 +9,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Vector3 } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { Avatar } from "./components/canvas/Avatar";
-
-const DEFAULT_CAMERA_STATE = {
-  position: new Vector3(-0, -0.5, 1.75),
-  target: new Vector3(0, -0.45, -0.15),
-};
+import { FaceTracker } from "./components/canvas/FaceTracker";
 
 function Loader() {
   const { progress } = useProgress();
@@ -28,6 +24,11 @@ function Loader() {
 
   return <Html center>{shown.toFixed(0)} % loaded</Html>;
 }
+
+const DEFAULT_CAMERA_STATE = {
+  position: new Vector3(-0, -0.5, 1.75),
+  target: new Vector3(0, -0.45, -0.15),
+};
 
 function InitCamera() {
   const { camera, controls } = useThree();
@@ -55,23 +56,46 @@ function InitCamera() {
 function App() {
   return (
     <div
-      style={{ width: "100vw", height: "100vh", backgroundColor: "#FFDAB9" }}
+      style={{
+        width: "100vw",
+        height: "100vh",
+        backgroundColor: "#FFDAB9",
+        display: "flex",
+        flexDirection: "row",
+      }}
     >
-      <Canvas
-        camera={{
-          position: DEFAULT_CAMERA_STATE.position,
-          fov: 50,
+      <div
+        style={{ flex: 1, position: "relative", borderRight: "2px solid #333" }}
+      >
+        <Canvas
+          camera={{
+            position: DEFAULT_CAMERA_STATE.position,
+            fov: 50,
+          }}
+        >
+          <Suspense fallback={<Loader />}>
+            <Environment preset="city" />
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[10, 10, 10]} intensity={1} />
+            <Avatar position={[0, -1.5, 0]} />
+          </Suspense>
+          <OrbitControls makeDefault />
+          <InitCamera />
+        </Canvas>
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          position: "relative",
+          backgroundColor: "#1a1a1a",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        <Suspense fallback={<Loader />}>
-          <Environment preset="city" />
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[10, 10, 10]} intensity={1} />
-          <Avatar position={[0, -1.5, 0]} />
-        </Suspense>
-        <OrbitControls makeDefault />
-        <InitCamera />
-      </Canvas>
+        <FaceTracker />
+      </div>
     </div>
   );
 }
