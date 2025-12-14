@@ -1,15 +1,17 @@
-import { useRef, useEffect, useState } from "react";
-import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import { Camera } from "@mediapipe/camera_utils";
-import { updateFaceData } from "../../utils/faceStore";
+import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+import { Eye, Rotate3d } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { Matrix4, Euler } from "three";
+import { subscribeToCameraState, updateFaceData } from "../../utils/faceStore";
 
 export const FaceTracker = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
+  const cameraInstanceRef = useRef<Camera | null>(null); // Store camera instance
   const lastTime = useRef(Date.now());
   const frameCount = useRef(0);
-  const [fpsValue, setFpsValue] = useState(0);
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -32,22 +34,28 @@ export const FaceTracker = () => {
             delegate: "GPU",
           },
           outputFaceBlendshapes: true,
+          outputFacialTransformationMatrixes: true,
           runningMode: "VIDEO",
           numFaces: 1,
         }
       );
 
-      startCamera();
+      // Initial check (maybe start if default is true, but default is false)
+      // We wait for subscription to trigger start
     };
 
     const startCamera = () => {
+      if (cameraInstanceRef.current) {
+        cameraInstanceRef.current.start();
+        return;
+      }
+
       const camera = new Camera(videoElement, {
         onFrame: async () => {
           // Calculate FPS
           frameCount.current++;
           const now = Date.now();
           if (now - lastTime.current >= 1000) {
-            setFpsValue(frameCount.current);
             frameCount.current = 0;
             lastTime.current = now;
           }
@@ -108,25 +116,41 @@ export const FaceTracker = () => {
               });
 
               // ----------------------------------------------------
-              // Drawing Eyelids (Green)
+              // Drawing Mouth (Blue)
               // ----------------------------------------------------
-              const eyelidIndices = [
-                // Left Eye
-                33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145,
-                144, 163, 7,
-                // Right Eye
-                362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374,
-                380, 381, 382,
+              const mouthIndices = [
+                0, // Top
+                17, // Bottom
+                61, // Left
+                291, // Right
               ];
 
-              canvasCtx.fillStyle = "#00FF00";
-              eyelidIndices.forEach((index) => {
+              canvasCtx.fillStyle = "#FF0000";
+              mouthIndices.forEach((index) => {
                 const point = landmarks[index];
                 canvasCtx.beginPath();
                 canvasCtx.arc(
                   point.x * canvasElement.width,
                   point.y * canvasElement.height,
-                  1,
+                  2,
+                  0,
+                  2 * Math.PI
+                );
+                canvasCtx.fill();
+              });
+
+              // ----------------------------------------------------
+              // Drawing Nose (Yellow)
+              // ----------------------------------------------------
+              const noseIndices = [1];
+              canvasCtx.fillStyle = "#FF0000";
+              noseIndices.forEach((index) => {
+                const point = landmarks[index];
+                canvasCtx.beginPath();
+                canvasCtx.arc(
+                  point.x * canvasElement.width,
+                  point.y * canvasElement.height,
+                  3,
                   0,
                   2 * Math.PI
                 );
@@ -153,29 +177,29 @@ export const FaceTracker = () => {
                 getScore("eyeLookUpRight") - getScore("eyeLookDownRight");
               const gazeY = (leftEyeY + rightEyeY) / 2;
 
-              // Visual Gaze Vector (Inside Mirrored Context)
-              const bridge = landmarks[6];
-              if (bridge) {
-                canvasCtx.beginPath();
-                canvasCtx.moveTo(
-                  bridge.x * canvasElement.width,
-                  bridge.y * canvasElement.height
-                );
-                canvasCtx.lineTo(
-                  (bridge.x + gazeX * 0.2) * canvasElement.width,
-                  (bridge.y - gazeY * 0.2) * canvasElement.height
-                );
-                canvasCtx.strokeStyle = "blue";
-                canvasCtx.lineWidth = 4;
-                canvasCtx.stroke();
-              }
-
               // Restore context to draw text normally (Unmirrored)
               canvasCtx.restore();
 
               // ----------------------------------------------------
               // Calculations & Store Update
               // ----------------------------------------------------
+              // Calculate Head Rotation from Matrix
+              let headX = 0,
+                headY = 0,
+                headZ = 0;
+              if (
+                results.facialTransformationMatrixes &&
+                results.facialTransformationMatrixes.length > 0
+              ) {
+                const matrix = new Matrix4().fromArray(
+                  results.facialTransformationMatrixes[0].data
+                );
+                const rotation = new Euler().setFromRotationMatrix(matrix);
+                headX = rotation.x;
+                headY = rotation.y;
+                headZ = rotation.z;
+              }
+
               // Reverted custom inversion. Now using positive GazeX.
               // Since we are mirroring the visual, Left Look -> Image Left.
               // GazeX Positive -> Left.
@@ -184,37 +208,18 @@ export const FaceTracker = () => {
                 gazeX * ROTATION_MULTIPLIER,
                 gazeY * ROTATION_MULTIPLIER,
                 gazeX * ROTATION_MULTIPLIER,
-                gazeY * ROTATION_MULTIPLIER
+                gazeY * ROTATION_MULTIPLIER,
+                headX,
+                headY,
+                headZ
               );
-
-              let gazeDir = "CENTER";
-              if (gazeX < -0.2) gazeDir = "LEFT";
-              else if (gazeX > 0.2) gazeDir = "RIGHT";
 
               // 2. Eyelid Openness
               const blinkAvg =
                 (getScore("eyeBlinkLeft") + getScore("eyeBlinkRight")) / 2;
               const wideAvg =
                 (getScore("eyeLookUpLeft") + getScore("eyeLookUpRight")) / 2;
-              const eyelidOpenness = Math.max(0, 1 - blinkAvg + wideAvg);
-              const eyelid = `${(eyelidOpenness * 100).toFixed(0)}%`;
-
-              // ----------------------------------------------------
-              // Visualization Text
-              // ----------------------------------------------------
-              canvasCtx.font = "30px Arial";
-              canvasCtx.fillStyle = "red";
-              canvasCtx.textAlign = "center";
-              canvasCtx.fillText(
-                `Gaze X: ${gazeX.toFixed(2)} (${gazeDir})`,
-                canvasElement.width / 2,
-                50
-              );
-              canvasCtx.fillText(
-                `Eyelid: ${eyelid}`,
-                canvasElement.width / 2,
-                100
-              );
+              Math.max(0, 1 - blinkAvg + wideAvg);
             } else {
               canvasCtx.restore(); // Ensure context is restored even if no landmarks
             }
@@ -224,14 +229,37 @@ export const FaceTracker = () => {
         height: 720,
       });
       camera.start();
+      cameraInstanceRef.current = camera;
     };
 
     setupFaceLandmarker();
 
+    // Subscribe to global camera state
+    const unsubscribe = subscribeToCameraState((isActive) => {
+      if (isActive) {
+        if (faceLandmarkerRef.current) {
+          startCamera();
+        }
+      } else {
+        if (cameraInstanceRef.current) {
+          // @ts-ignore - stop() exists on the instance usually but might be missing in strict types
+          try {
+            cameraInstanceRef.current.stop();
+          } catch (e) {}
+        }
+      }
+    });
+
     return () => {
+      unsubscribe();
       videoElement.srcObject = null;
       if (faceLandmarkerRef.current) {
         faceLandmarkerRef.current.close();
+      }
+      if (cameraInstanceRef.current) {
+        try {
+          cameraInstanceRef.current.stop();
+        } catch (e) {}
       }
     };
   }, []);
@@ -257,21 +285,71 @@ export const FaceTracker = () => {
         ref={canvasRef}
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
       ></canvas>
-      <div
-        style={{
-          position: "absolute",
-          top: "10px",
-          right: "10px",
-          backgroundColor: "gray",
-          color: "white",
-          padding: "5px 10px",
-          borderRadius: "4px",
-          fontSize: "16px",
-          pointerEvents: "none",
-        }}
-      >
-        {fpsValue} FPS
-      </div>
+
+      {/* TODO: Add controls */}
+      {/* <FaceControl /> */}
     </div>
   );
 };
+
+function FaceControl() {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        bottom: "30px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        display: "flex",
+        gap: "12px",
+      }}
+    >
+      <button
+        style={{
+          padding: "12px",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Rotate3d size={20} />
+      </button>
+      <button
+        style={{
+          padding: "12px",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Eye size={20} />
+      </button>
+      <button
+        style={{
+          padding: "12px",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 100 100"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <rect width="200" height="200" rx="20" />
+          <path
+            d="M25 55 C25 70 75 70 75 55 L25 55"
+            stroke="white"
+            stroke-width="6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            fill="none"
+          />
+        </svg>
+      </button>
+    </div>
+  );
+}
